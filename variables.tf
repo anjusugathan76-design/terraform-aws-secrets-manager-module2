@@ -143,17 +143,3 @@ variable "azure_keyvault_secret_name" {
   type        = string
   default     = ""
 }
-
-# ============================================================================
-# ENTERPRISE-GRADE VALIDATION: Enforce Single Secret Source
-# ============================================================================
-# Issue Fix #3: Prevent multiple conflicting sources
-# Only one of: Vault, Azure Key Vault, or Direct secret source can be enabled
-
-validation {
-  condition = (
-    (var.use_vault_source ? 1 : 0) +
-    (var.use_azure_keyvault_source ? 1 : 0)
-  ) <= 1
-  error_message = "Only ONE external secret source can be enabled at a time. Choose: use_vault_source OR use_azure_keyvault_source. Direct secrets (secret_values) can always be used as a fallback."
-}
