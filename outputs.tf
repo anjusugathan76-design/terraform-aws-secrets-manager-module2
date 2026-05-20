@@ -22,3 +22,8 @@ output "replica_regions" {
   description = "List of regions where secret is replicated"
   value       = var.replica_regions
 }
+
+output "provisioning_mode" {
+  description = "Secret provisioning mode (vault-external, azure-external, or direct-external). For observability and compliance tracking only. Terraform does NOT actively fetch secrets from external systems."
+  value       = local.provisioning_mode
+}
