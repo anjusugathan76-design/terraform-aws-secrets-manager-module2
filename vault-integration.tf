@@ -1,44 +1,56 @@
-# Vault and Azure Key Vault integration for secret retrieval
-# This file handles fetching secrets from external sources
+# ============================================================================
+# Secret Source Type Tracking (No Secret Retrieval)
+# ============================================================================
+# This file documents which secret source is being used for audit/compliance.
+# 
+# IMPORTANT: This module does NOT fetch secrets from Vault or Azure.
+# Secrets should be retrieved OUTSIDE this module and passed via var.secret_values
+#
+# This keeps secrets out of Terraform state and ensures proper separation of concerns.
 
-# Data source for HashiCorp Vault
-data "vault_generic_secret" "vault_secret" {
-  count = var.use_vault_source ? 1 : 0
-
-  path = var.vault_secret_path
-}
-
-# Data source for Azure Key Vault
-data "azurerm_key_vault_secret" "azure_secret" {
-  count = var.use_azure_keyvault_source ? 1 : 0
-
-  name             = var.azure_keyvault_secret_name
-  key_vault_id     = var.azure_keyvault_id
-}
-
-# Local that determines which secret source to use and merges them
 locals {
-  # Determine the source type
+  # Determine the source type for tracking and tagging purposes only
   source_type = var.use_vault_source ? "vault" : (
     var.use_azure_keyvault_source ? "azure_keyvault" : "direct"
   )
-
-  # Fetch secrets from the appropriate source
-  vault_secrets = var.use_vault_source ? (
-    var.vault_kv_version == 2 ?
-    data.vault_generic_secret.vault_secret[0].data.data :
-    data.vault_generic_secret.vault_secret[0].data
-  ) : {}
-
-  azure_secrets = var.use_azure_keyvault_source ? (
-    jsondecode(data.azurerm_key_vault_secret.azure_secret[0].value)
-  ) : {}
-
-  # Merge all secrets: vault base + azure base + local overrides
-  final_secrets = merge(
-    local.vault_secrets,
-    local.azure_secrets,
-    var.secret_overrides,
-    var.secret_values
-  )
 }
+
+# ============================================================================
+# CORRECT USAGE PATTERN (How to use this module)
+# ============================================================================
+#
+# ✅ CORRECT - Fetch secrets OUTSIDE module, pass to module:
+#
+# data "external" "vault_secrets" {
+#   program = ["bash", "${path.module}/scripts/fetch-from-vault.sh"]
+#
+#   query = {
+#     vault_addr  = var.vault_addr
+#     vault_token = var.vault_token
+#     secret_path = var.vault_secret_path
+#   }
+# }
+#
+# module "secrets_manager" {
+#   source = "./path/to/module"
+#
+#   name           = "my-app-secrets"
+#   secret_values  = jsondecode(data.external.vault_secrets.result.secrets)
+#   use_vault_source = true  # For tracking only
+#
+#   tags = {
+#     SecretSource = local.source_type
+#   }
+# }
+#
+# ============================================================================
+#
+# ❌ WRONG - Module should NOT do this:
+#   - Call Vault data sources directly
+#   - Call Azure Key Vault data sources directly
+#   - Decode JSON inside module
+#   - Store secrets in local values
+#
+# Why? Terraform state will capture them regardless of sensitive() wrapping
+#
+# ============================================================================
